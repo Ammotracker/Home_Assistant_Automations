@@ -1,0 +1,355 @@
+alias: Workshop Office AC 3.0
+description: ""
+triggers:
+  - entity_id:
+	  - light.workshopoffice
+	to: "on"
+	for:
+	  hours: 0
+	  minutes: 1
+	  seconds: 0
+	id: turn_on_cold
+	trigger: state
+  - entity_id:
+	  - light.workshopoffice
+	to: "off"
+	for:
+	  hours: 0
+	  minutes: 1
+	  seconds: 0
+	id: turn_off
+	trigger: state
+  - minutes: /15
+	trigger: time_pattern
+conditions:
+  - condition: state
+	entity_id: input_boolean.helper_workshop_ac_manual_override
+	state: "off"
+  - condition: state
+	entity_id: binary_sensor.grid_status
+	state: "on"
+actions:
+  - choose:
+	  - conditions:
+		  - condition: sun
+			after: sunset
+			before: sunrise
+			after_offset: "-02:00:00"
+			before_offset: "+02:00:00"
+			enabled: true
+		  - condition: or
+			conditions:
+			  - alias: >-
+				  Check to see if the current temp is 2 below set temp (Workshop
+				  Temp)
+				condition: template
+				value_template: >-
+				  {{ states('input_number.ac_idle_setpoint') | int -2 >
+				  states('sensor.workshopoffice_temperature')|float }}
+			  - alias: >-
+				  Check to see if the current temp is 2 below set temp (Workshop
+				  Temp 2)
+				condition: template
+				value_template: >-
+				  {{ states('input_number.ac_idle_setpoint') | int -2 >
+				  states('sensor.workshop_office_temp_2_temperature')|float }}
+			  - alias: >-
+				  Check to see if the current temp is 2 below set temp (Workshop
+				  Office Smoke Temp)
+				condition: template
+				value_template: >-
+				  {{ states('input_number.ac_idle_setpoint') | int -2 >
+				  states('sensor.workshop_office_smoke_detector_temperature')|float
+				  }}
+		  - condition: state
+			entity_id: input_select.workshop_ac_mode
+			state: cool
+		  - condition: numeric_state
+			entity_id: sensor.workshopoffice_humidity
+			below: 70
+		  - condition: state
+			entity_id: light.workshopoffice
+			state: "off"
+		  - condition: or
+			conditions:
+			  - condition: state
+				entity_id: climate.workshop_office_ac
+				for:
+				  hours: 0
+				  minutes: 0
+				  seconds: 0
+				state: cool
+				enabled: true
+			  - condition: state
+				entity_id: climate.workshop_office_ac
+				for:
+				  hours: 0
+				  minutes: 0
+				  seconds: 0
+				state: "off"
+			enabled: true
+		sequence:
+		  - choose: []
+			default:
+			  - if:
+				  - condition: state
+					entity_id: climate.workshop_office_ac
+					state: cool
+				then:
+				  - action: climate.set_temperature
+					metadata: {}
+					data:
+					  hvac_mode: cool
+					  temperature: "{{ states('input_number.ac_idle_setpoint') }}"
+					target:
+					  entity_id: climate.workshop_office_ac
+				  - delay:
+					  hours: 0
+					  minutes: 0
+					  seconds: 3
+					  milliseconds: 0
+				alias: Set the temp back to idle if the AC is coming from On to Off
+			  - metadata: {}
+				data: {}
+				target:
+				  entity_id: climate.workshop_office_ac
+				action: climate.turn_off
+		alias: Turn off AC at night
+	  - conditions:
+		  - condition: sun
+			after: sunset
+			before: sunrise
+			after_offset: "-03:00:00"
+			before_offset: "+02:00:00"
+			enabled: false
+		  - condition: or
+			conditions:
+			  - alias: >-
+				  Check to see if the current temp is 2 below set temp (Workshop
+				  Temp)
+				condition: template
+				value_template: >-
+				  {{ states('input_number.ac_idle_setpoint') | int +2 >
+				  states('sensor.workshopoffice_temperature')|float }}
+			  - alias: >-
+				  Check to see if the current temp is 2 below set temp (Workshop
+				  Temp 2)
+				condition: template
+				value_template: >-
+				  {{ states('input_number.ac_idle_setpoint') | int +2 >
+				  states('sensor.workshop_office_temp_2_temperature')|float }}
+			  - alias: >-
+				  Check to see if the current temp is 2 below set temp (Workshop
+				  Office Smoke Temp)
+				condition: template
+				value_template: >-
+				  {{ states('input_number.ac_idle_setpoint') | int +2 >
+				  states('sensor.workshop_office_smoke_detector_temperature')|float
+				  }}
+		  - condition: state
+			entity_id: input_select.workshop_ac_mode
+			state: heat
+		  - condition: numeric_state
+			entity_id: sensor.workshopoffice_humidity
+			below: 70
+		  - condition: state
+			entity_id: light.workshopoffice
+			state: "off"
+		  - condition: or
+			conditions:
+			  - condition: state
+				entity_id: climate.workshop_office_ac
+				for:
+				  hours: 0
+				  minutes: 25
+				  seconds: 0
+				state: heat
+			  - condition: state
+				entity_id: climate.workshop_office_ac
+				for:
+				  hours: 0
+				  minutes: 0
+				  seconds: 0
+				state: "off"
+		sequence:
+		  - choose: []
+			default:
+			  - alias: Set the temp back to idle if the heat coming from On to Off
+				if:
+				  - condition: state
+					entity_id: climate.workshop_office_ac
+					state: heat
+				then:
+				  - action: climate.set_temperature
+					metadata: {}
+					data:
+					  hvac_mode: cool
+					  temperature: "{{ states('input_number.ac_idle_setpoint') }}"
+					target:
+					  entity_id: climate.workshop_office_ac
+				  - delay:
+					  hours: 0
+					  minutes: 0
+					  seconds: 3
+					  milliseconds: 0
+			  - metadata: {}
+				data: {}
+				target:
+				  entity_id: climate.workshop_office_ac
+				action: climate.turn_off
+		alias: Turn off Heat at night
+	default:
+	  - choose:
+		  - conditions:
+			  - condition: state
+				entity_id: light.workshopoffice
+				state: "off"
+			sequence:
+			  - if:
+				  - condition: state
+					entity_id: input_select.workshop_ac_mode
+					state: cool
+				then:
+				  - action: climate.set_hvac_mode
+					metadata: {}
+					data:
+					  hvac_mode: cool
+					target:
+					  entity_id: climate.workshop_office_ac
+				  - delay:
+					  hours: 0
+					  minutes: 0
+					  seconds: 1
+					  milliseconds: 0
+				  - action: climate.set_temperature
+					metadata: {}
+					data:
+					  hvac_mode: cool
+					  temperature: "{{ states('input_number.ac_idle_setpoint') }}"
+					target:
+					  entity_id: climate.workshop_office_ac
+				alias: Cool
+			  - if:
+				  - condition: state
+					entity_id: input_select.workshop_ac_mode
+					state: heat
+				then:
+				  - action: climate.set_hvac_mode
+					metadata: {}
+					data:
+					  hvac_mode: heat
+					target:
+					  entity_id: climate.workshop_office_ac
+				  - delay:
+					  hours: 0
+					  minutes: 0
+					  seconds: 1
+					  milliseconds: 0
+				  - action: climate.set_temperature
+					metadata: {}
+					data:
+					  hvac_mode: heat
+					  temperature: "{{ states('input_number.ac_idle_setpoint') }}"
+					target:
+					  entity_id: climate.workshop_office_ac
+				alias: Heat
+			alias: Empty Room
+		  - conditions:
+			  - condition: state
+				entity_id: light.workshopoffice
+				state: "on"
+			sequence:
+			  - alias: Cool
+				if:
+				  - condition: and
+					conditions:
+					  - condition: state
+						entity_id: input_select.workshop_ac_mode
+						state: cool
+					  - condition: or
+						conditions:
+						  - alias: See if temps match
+							condition: template
+							value_template: >-
+							  {{
+							  states('input_number.workshop_ac_active_setpoint')
+							  | int !=
+							  state_attr('climate.workshop_office_ac','temperature')|float
+							  }}
+						  - alias: Check to see if the mode is different
+							condition: template
+							value_template: >-
+							  {{ states('input_select.workshop_ac_mode') |
+							  string !=
+							  state_attr('climate.workshop_office_ac','last_on_operation')|string
+							  }}
+						  - condition: state
+							entity_id: climate.workshop_office_ac
+							state: "off"
+				then:
+				  - action: climate.set_hvac_mode
+					metadata: {}
+					data:
+					  hvac_mode: cool
+					target:
+					  entity_id: climate.workshop_office_ac
+				  - delay:
+					  hours: 0
+					  minutes: 0
+					  seconds: 1
+					  milliseconds: 0
+				  - action: climate.set_temperature
+					metadata: {}
+					data:
+					  hvac_mode: cool
+					  temperature: "{{ states('input_number.workshop_ac_active_setpoint') }}"
+					target:
+					  entity_id: climate.workshop_office_ac
+			  - alias: Heat
+				if:
+				  - condition: and
+					conditions:
+					  - condition: state
+						entity_id: input_select.workshop_ac_mode
+						state: heat
+					  - condition: or
+						conditions:
+						  - alias: See if temps match
+							condition: template
+							value_template: >-
+							  {{
+							  states('input_number.workshop_ac_active_setpoint')
+							  | int !=
+							  state_attr('climate.workshop_office_ac','temperature')|float
+							  }}
+						  - alias: Check to see if the mode is different
+							condition: template
+							value_template: >-
+							  {{ states('input_select.workshop_ac_mode') |
+							  string !=
+							  state_attr('climate.workshop_office_ac','last_on_operation')|string
+							  }}
+						  - condition: state
+							entity_id: climate.workshop_office_ac
+							state: "off"
+				then:
+				  - action: climate.set_hvac_mode
+					metadata: {}
+					data:
+					  hvac_mode: heat
+					target:
+					  entity_id: climate.workshop_office_ac
+				  - delay:
+					  hours: 0
+					  minutes: 0
+					  seconds: 1
+					  milliseconds: 0
+				  - action: climate.set_temperature
+					metadata: {}
+					data:
+					  hvac_mode: heat
+					  temperature: "{{ states('input_number.workshop_ac_active_setpoint') }}"
+					target:
+					  entity_id: climate.workshop_office_ac
+			alias: Occupied Room
+mode: single
