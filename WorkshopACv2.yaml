@@ -1,0 +1,559 @@
+alias: Workshop Office AC 2.0
+  description: Added variable logic
+  trigger:
+  - platform: time_pattern
+	minutes: /15
+	seconds: '30'
+  - platform: state
+	entity_id:
+	- light.workshopoffice
+	to: 'off'
+	for:
+	  hours: 0
+	  minutes: 1
+	  seconds: 0
+	id: OfficeLightsOff
+  - platform: state
+	entity_id:
+	- input_boolean.helper_workshop_ac_occupied
+  - platform: state
+	entity_id:
+	- light.workshopoffice
+	id: motiondetected
+	to: 'on'
+	for:
+	  hours: 0
+	  minutes: 1
+	  seconds: 0
+  - alias: Set Mode to cool
+	platform: numeric_state
+	entity_id:
+	- sensor.filtered_temp
+	for:
+	  hours: 0
+	  minutes: 5
+	  seconds: 0
+	above: 65
+	id: coolmode
+  - alias: Set Mode to heat
+	platform: numeric_state
+	entity_id:
+	- sensor.filtered_temp
+	for:
+	  hours: 0
+	  minutes: 5
+	  seconds: 0
+	id: heatmode
+	below: 65
+	enabled: false
+  - platform: numeric_state
+	entity_id:
+	- sensor.workshopoffice_humidity
+	above: 70
+	alias: High Humidity
+	id: highhumidity
+  - alias: Re-Trigger when mode changes to dry
+	platform: state
+	entity_id:
+	- input_select.outside_temp_wksp_office_ac_mode
+	to: Dry
+	for:
+	  hours: 0
+	  minutes: 0
+	  seconds: 5
+  - alias: Restore from High Humidity
+	platform: numeric_state
+	entity_id:
+	- sensor.workshopoffice_humidity
+	id: restoremode
+	for:
+	  hours: 0
+	  minutes: 5
+	  seconds: 0
+	below: 70
+  condition: []
+  action:
+  - choose:
+	- conditions:
+	  - condition: trigger
+		id:
+		- motiondetected
+	  sequence:
+	  - service: input_boolean.turn_on
+		metadata: {}
+		data: {}
+		target:
+		  entity_id: input_boolean.helper_workshop_ac_occupied
+	- conditions:
+	  - condition: trigger
+		id:
+		- OfficeLightsOff
+	  sequence:
+	  - service: input_boolean.turn_off
+		metadata: {}
+		data: {}
+		target:
+		  entity_id:
+		  - input_boolean.helper_workshop_ac_occupied
+		  - input_boolean.helper_workshop_ac_manual_override
+	- conditions:
+	  - condition: trigger
+		id:
+		- coolmode
+	  - condition: numeric_state
+		entity_id: sensor.workshopoffice_humidity
+		below: 70
+	  sequence:
+	  - service: input_select.select_option
+		metadata: {}
+		data:
+		  option: Cool
+		target:
+		  entity_id: input_select.outside_temp_wksp_office_ac_mode
+	- conditions:
+	  - condition: trigger
+		id:
+		- heatmode
+	  - condition: numeric_state
+		entity_id: sensor.workshopoffice_humidity
+		below: 70
+	  sequence:
+	  - service: input_select.select_option
+		metadata: {}
+		data:
+		  option: Heat
+		target:
+		  entity_id: input_select.outside_temp_wksp_office_ac_mode
+	- conditions:
+	  - condition: sun
+		after: sunset
+		before: sunrise
+		after_offset: -03:00:00
+		before_offset: +02:00:00
+		enabled: true
+	  - condition: or
+		conditions:
+		- alias: Check to see if the current temp is 2 below set temp (Workshop Temp)
+		  condition: template
+		  value_template: '{{ states(''input_number.ac_idle_setpoint'') | int -2 >
+			states(''sensor.workshopoffice_temperature'')|float }}'
+		- alias: Check to see if the current temp is 2 below set temp (Workshop Temp
+			2)
+		  condition: template
+		  value_template: '{{ states(''input_number.ac_idle_setpoint'') | int -2 >
+			states(''sensor.workshop_office_temp_2_temperature'')|float }}'
+		- alias: Check to see if the current temp is 2 below set temp (Workshop Office
+			Smoke Temp)
+		  condition: template
+		  value_template: '{{ states(''input_number.ac_idle_setpoint'') | int -2 >
+			states(''sensor.workshop_office_smoke_detector_temperature'')|float }}'
+	  - condition: state
+		entity_id: input_select.outside_temp_wksp_office_ac_mode
+		state: Cool
+	  - condition: state
+		entity_id: input_boolean.helper_workshop_ac_manual_override
+		state: 'off'
+	  - condition: numeric_state
+		entity_id: sensor.workshopoffice_humidity
+		below: 70
+	  - condition: state
+		entity_id: light.workshopoffice
+		state: 'off'
+	  - condition: or
+		conditions:
+		- condition: state
+		  entity_id: climate.office_ac
+		  for:
+			hours: 0
+			minutes: 25
+			seconds: 0
+		  state: cool
+		- condition: state
+		  entity_id: climate.office_ac
+		  for:
+			hours: 0
+			minutes: 0
+			seconds: 0
+		  state: 'off'
+	  sequence:
+	  - choose: []
+		default:
+		- service: climate.turn_off
+		  metadata: {}
+		  data: {}
+		  target:
+			entity_id: climate.office_ac
+	  alias: Turn off AC at night
+	- conditions:
+	  - condition: sun
+		after: sunset
+		before: sunrise
+		after_offset: -00:30:00
+	  - condition: state
+		entity_id: light.workshopoffice
+		state: 'off'
+	  - alias: Check to see if the current temp is 2 above set temp
+		condition: template
+		value_template: '{{ state_attr("climate.office_ac" , "temperature") + 2 <
+		  states(''sensor.workshopoffice_temperature'')|float }}'
+	  - condition: state
+		entity_id: input_select.outside_temp_wksp_office_ac_mode
+		state: Heat
+	  - condition: state
+		entity_id: input_boolean.helper_workshop_ac_manual_override
+		state: 'off'
+	  - condition: numeric_state
+		entity_id: sensor.workshopoffice_humidity
+		below: 70
+	  sequence:
+	  - choose:
+		- conditions:
+		  - condition: state
+			entity_id: climate.office_ac
+			state: 'off'
+		  sequence: []
+		  alias: If AC is off, DO nothing
+		default:
+		- service: climate.turn_off
+		  metadata: {}
+		  data: {}
+		  target:
+			entity_id: climate.office_ac
+	  alias: Turn off Heat at night
+	- conditions:
+	  - condition: trigger
+		id:
+		- highhumidity
+	  - condition: numeric_state
+		entity_id: sensor.workshopoffice_humidity
+		above: 70
+	  sequence:
+	  - choose:
+		- conditions:
+		  - condition: state
+			entity_id: binary_sensor.workshop_office_door_sensor
+			state: 'on'
+		  sequence:
+		  - service: tts.google_translate_say
+			metadata: {}
+			data:
+			  cache: false
+			  message: Office Door is open and humidity is high,  please close the
+				door
+			  entity_id: media_player.workshop_group
+			alias: Alert in Workshop
+		  - service: persistent_notification.create
+			metadata: {}
+			data:
+			  message: Workshop Office Humidity is high and the door was left open
+		  alias: Door left open - Alert, but dont do anything
+		- conditions:
+		  - condition: state
+			entity_id: binary_sensor.workshop_office_door_sensor
+			state: 'off'
+		  - condition: state
+			entity_id: input_boolean.helper_workshop_ac_manual_override
+			state: 'off'
+		  sequence:
+		  - service: input_select.select_option
+			metadata: {}
+			data:
+			  option: Dry
+			target:
+			  entity_id: input_select.outside_temp_wksp_office_ac_mode
+		  alias: Door is closed & override off
+	  alias: Dry Mode
+	- conditions:
+	  - condition: trigger
+		id:
+		- restoremode
+	  - condition: state
+		entity_id: input_select.outside_temp_wksp_office_ac_mode
+		state: Dry
+	  sequence:
+	  - choose:
+		- conditions:
+		  - condition: numeric_state
+			entity_id: sensor.filtered_temp
+			above: 65
+		  sequence:
+		  - service: input_select.select_option
+			metadata: {}
+			data:
+			  option: Cool
+			target:
+			  entity_id: input_select.outside_temp_wksp_office_ac_mode
+		  alias: restore to cool mode
+		- conditions:
+		  - condition: numeric_state
+			entity_id: sensor.filtered_temp
+			below: 65
+		  sequence:
+		  - service: input_select.select_option
+			metadata: {}
+			data:
+			  option: Heat
+			target:
+			  entity_id: input_select.outside_temp_wksp_office_ac_mode
+		  alias: restore to heat mode
+	  alias: Restore Mode after Dry
+	default:
+	- choose:
+	  - conditions:
+		- condition: state
+		  entity_id: input_boolean.helper_workshop_ac_manual_override
+		  state: 'off'
+		- condition: state
+		  entity_id: input_boolean.helper_workshop_ac_occupied
+		  state: 'on'
+		- condition: or
+		  conditions:
+		  - condition: numeric_state
+			entity_id: climate.office_ac
+			attribute: temperature
+			above: 78
+		  - condition: numeric_state
+			entity_id: climate.office_ac
+			attribute: temperature
+			below: 78
+		  - condition: state
+			entity_id: climate.office_ac
+			state: heat
+		  - condition: state
+			entity_id: climate.office_ac
+			state: 'off'
+		  - condition: state
+			entity_id: climate.office_ac
+			state: dry
+		- condition: state
+		  entity_id: input_select.outside_temp_wksp_office_ac_mode
+		  state: Cool
+		sequence:
+		- service: climate.set_hvac_mode
+		  metadata: {}
+		  data:
+			hvac_mode: cool
+		  target:
+			entity_id: climate.office_ac
+		- delay:
+			hours: 0
+			minutes: 0
+			seconds: 1
+			milliseconds: 0
+		- service: climate.set_temperature
+		  metadata: {}
+		  data:
+			temperature: 78
+		  target:
+			entity_id: climate.office_ac
+		alias: AC On, Above 65
+	  - conditions:
+		- condition: state
+		  entity_id: input_boolean.helper_workshop_ac_manual_override
+		  state: 'off'
+		- condition: state
+		  entity_id: input_boolean.helper_workshop_ac_occupied
+		  state: 'on'
+		- condition: or
+		  conditions:
+		  - condition: numeric_state
+			entity_id: climate.office_ac
+			attribute: temperature
+			above: 70
+		  - condition: numeric_state
+			entity_id: climate.office_ac
+			attribute: temperature
+			below: 70
+		  - condition: state
+			entity_id: climate.office_ac
+			state: cool
+		  - condition: state
+			entity_id: climate.office_ac
+			state: 'off'
+		  - condition: state
+			entity_id: climate.office_ac
+			state: dry
+		- condition: state
+		  entity_id: input_select.outside_temp_wksp_office_ac_mode
+		  state: Heat
+		sequence:
+		- service: climate.set_hvac_mode
+		  metadata: {}
+		  data:
+			hvac_mode: heat
+		  target:
+			entity_id: climate.office_ac
+		- delay:
+			hours: 0
+			minutes: 0
+			seconds: 1
+			milliseconds: 0
+		- service: climate.set_temperature
+		  metadata: {}
+		  data:
+			temperature: 70
+		  target:
+			entity_id: climate.office_ac
+		alias: Heat On - Below 65
+	  - conditions:
+		- condition: state
+		  entity_id: input_boolean.helper_workshop_ac_manual_override
+		  state: 'off'
+		- condition: state
+		  entity_id: input_boolean.helper_workshop_ac_occupied
+		  state: 'off'
+		- condition: or
+		  conditions:
+		  - condition: numeric_state
+			entity_id: climate.office_ac
+			attribute: temperature
+			above: 80
+		  - condition: numeric_state
+			entity_id: climate.office_ac
+			attribute: temperature
+			below: 80
+		  - condition: state
+			entity_id: climate.office_ac
+			state: heat
+		  - condition: state
+			entity_id: climate.office_ac
+			state: 'off'
+		  - condition: state
+			entity_id: climate.office_ac
+			state: dry
+		  enabled: false
+		- condition: state
+		  entity_id: input_select.outside_temp_wksp_office_ac_mode
+		  state: Cool
+		- condition: state
+		  entity_id: input_boolean.workshop_ac_cycle_toggle
+		  state: 'off'
+		  for:
+			hours: 0
+			minutes: 45
+			seconds: 0
+		sequence:
+		- service: input_boolean.turn_on
+		  metadata: {}
+		  data: {}
+		  target:
+			entity_id: input_boolean.workshop_ac_cycle_toggle
+		  alias: turn cycle back on
+		- service: climate.set_hvac_mode
+		  metadata: {}
+		  data:
+			hvac_mode: cool
+		  target:
+			entity_id: climate.office_ac
+		- delay:
+			hours: 0
+			minutes: 0
+			seconds: 1
+			milliseconds: 0
+		- service: climate.set_temperature
+		  metadata: {}
+		  data:
+			temperature: '{{ states(''input_number.ac_idle_setpoint'') | float }}'
+		  target:
+			entity_id: climate.office_ac
+		- service: input_boolean.turn_off
+		  metadata: {}
+		  data: {}
+		  target:
+			entity_id: input_boolean.workshop_ac_cycle_toggle
+		  alias: Turn off toggle bit
+		alias: AC On, Above 65 - Empty Room
+	  - conditions:
+		- condition: state
+		  entity_id: input_boolean.helper_workshop_ac_manual_override
+		  state: 'off'
+		- condition: state
+		  entity_id: input_boolean.helper_workshop_ac_occupied
+		  state: 'off'
+		- condition: or
+		  conditions:
+		  - condition: numeric_state
+			entity_id: climate.office_ac
+			attribute: temperature
+			above: 65
+		  - condition: numeric_state
+			entity_id: climate.office_ac
+			attribute: temperature
+			below: 65
+		  - condition: state
+			entity_id: climate.office_ac
+			state: cool
+		  - condition: state
+			entity_id: climate.office_ac
+			state: 'off'
+		  - condition: state
+			entity_id: climate.office_ac
+			state: dry
+		- condition: state
+		  entity_id: input_select.outside_temp_wksp_office_ac_mode
+		  state: Heat
+		sequence:
+		- service: climate.set_hvac_mode
+		  metadata: {}
+		  data:
+			hvac_mode: heat
+		  target:
+			entity_id: climate.office_ac
+		- delay:
+			hours: 0
+			minutes: 0
+			seconds: 1
+			milliseconds: 0
+		- service: climate.set_temperature
+		  metadata: {}
+		  data:
+			temperature: 65
+		  target:
+			entity_id: climate.office_ac
+		alias: Heat On - Below 65 - Empty Room
+	  - conditions:
+		- condition: state
+		  entity_id: input_boolean.helper_workshop_ac_manual_override
+		  state: 'off'
+		- condition: or
+		  conditions:
+		  - condition: numeric_state
+			entity_id: climate.office_ac
+			attribute: temperature
+			above: 75
+		  - condition: numeric_state
+			entity_id: climate.office_ac
+			attribute: temperature
+			below: 75
+		  - condition: state
+			entity_id: climate.office_ac
+			state: heat
+		  - condition: state
+			entity_id: climate.office_ac
+			state: 'off'
+		- condition: state
+		  entity_id: input_select.outside_temp_wksp_office_ac_mode
+		  state: Dry
+		sequence:
+		- service: climate.set_hvac_mode
+		  metadata: {}
+		  data:
+			hvac_mode: dry
+		  target:
+			entity_id: climate.office_ac
+		- delay:
+			hours: 0
+			minutes: 0
+			seconds: 1
+			milliseconds: 0
+		- service: climate.set_temperature
+		  metadata: {}
+		  data:
+			temperature: 75
+		  target:
+			entity_id: climate.office_ac
+		alias: Dry Room
+  trace:
+	stored_traces: 20
+  mode: queued
+  max: 10
