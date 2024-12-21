@@ -125,21 +125,21 @@ actions:
 		  - condition: or
 			conditions:
 			  - alias: >-
-				  Check to see if the current temp is 2 below set temp (Workshop
+				  Check to see if the current temp is 2 above set temp (Workshop
 				  Temp)
 				condition: template
 				value_template: >-
 				  {{ states('input_number.ac_idle_setpoint') | int +2 >
 				  states('sensor.workshopoffice_temperature')|float }}
 			  - alias: >-
-				  Check to see if the current temp is 2 below set temp (Workshop
+				  Check to see if the current temp is 2 above set temp (Workshop
 				  Temp 2)
 				condition: template
 				value_template: >-
 				  {{ states('input_number.ac_idle_setpoint') | int +2 >
 				  states('sensor.workshop_office_temp_2_temperature')|float }}
 			  - alias: >-
-				  Check to see if the current temp is 2 below set temp (Workshop
+				  Check to see if the current temp is 2 above set temp (Workshop
 				  Office Smoke Temp)
 				condition: template
 				value_template: >-
